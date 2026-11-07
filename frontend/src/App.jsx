@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MapView from "./components/MapView.jsx";
-import NearbyLeases from "./components/NearbyLeases.jsx";
+import NearbyLeases, { nearbyLeases } from "./components/NearbyLeases.jsx";
 import CompareTable from "./components/CompareTable.jsx";
 import {
   AgentPanel,
@@ -56,6 +56,7 @@ export default function App() {
   const [compareOpen, setCompareOpen] = useState(false);
   const [prevRanks, setPrevRanks] = useState(null);
   const leasesPanel = useRef(null);
+  const [leaseRadius, setLeaseRadius] = useState(3);
 
   // Drop responses from a run that has since been replaced.
   const runId = useRef(0);
@@ -109,6 +110,8 @@ export default function App() {
   const picks = analysis?.shortlist ?? [];
   const labels = useMemo(() => pickLabels(analysis?.shortlist ?? []), [analysis]);
   const selected = picks.find((p) => p.rank === selectedRank) ?? null;
+  const nearby = useMemo(() => nearbyLeases(selected, leaseRadius), [selected, leaseRadius]);
+  const mapLeases = useMemo(() => nearby.slice(0, 10), [nearby]);
   const verdict = explanation?.verdicts.find((v) => v.rank === selectedRank) ?? null;
   const selectPick = (rank) => {
     setSelectedRank(rank);
@@ -148,7 +151,7 @@ export default function App() {
               )}
               {selected && (
                 <div ref={leasesPanel} tabIndex={-1} aria-label={`Commercial rentals near pick ${selected.rank}`}>
-                  <NearbyLeases area={selected} />
+                  <NearbyLeases area={selected} nearby={nearby} radius={leaseRadius} onRadius={setLeaseRadius} />
                 </div>
               )}
               {selected && (
@@ -169,6 +172,7 @@ export default function App() {
       </aside>
 
       <MapView
+        leases={mapLeases}
         analysis={analysis}
         labels={labels}
         selectedRank={selectedRank}

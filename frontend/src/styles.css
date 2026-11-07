@@ -74,6 +74,9 @@
 .lease-list { list-style: none; padding: 0; margin: 0; }
 .lease-list li { padding: 12px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
 .lease-list a { color: var(--accent-text); font-weight: 600; }
+.property-pin { background: var(--accent); border: 2px solid var(--pin-bg); border-radius: 50%; box-shadow: 0 0 0 1px var(--accent-text); }
+.property-pin:focus-visible { outline: 3px solid var(--text); outline-offset: 3px; }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--panel); color: var(--text); }
 .leases p { margin: 10px 0; }
 
 html, body, #root { height: 100%; }

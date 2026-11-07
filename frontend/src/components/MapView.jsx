@@ -5,6 +5,7 @@ import {
   MapContainer,
   Marker,
   Pane,
+  Popup,
   TileLayer,
   Tooltip,
   useMap,
@@ -24,6 +25,11 @@ import {
 
 // Set VITE_CARTO_API_KEY in frontend/.env for CARTO basemaps.
 const CARTO_KEY = (import.meta.env.VITE_CARTO_API_KEY ?? "").trim();
+const propertyIcon = L.divIcon({
+  className: "property-pin",
+  iconSize: [12, 12],
+  iconAnchor: [6, 6],
+});
 
 const RING = {
   dark: { inner: "#3dd6b5", outer: "#93a0b2" },
@@ -147,7 +153,7 @@ const LEVEL_TEXT = {
   1: "Heat at the finest level: each ~350 m area.",
 };
 
-export default function MapView({ analysis, labels, selectedRank, onSelect, metric, onMetric, loading, theme }) {
+export default function MapView({ analysis, labels, selectedRank, onSelect, metric, onMetric, loading, theme, leases = [] }) {
   const [zoom, setZoom] = useState(13);
   const k = groupSizeForZoom(zoom);
   const selected = analysis?.shortlist.find((p) => p.rank === selectedRank) ?? null;
@@ -200,6 +206,18 @@ export default function MapView({ analysis, labels, selectedRank, onSelect, metr
             />
           </Pane>
         )}
+
+        {leases.map((listing) => (
+          <Marker key={`${selectedRank}-${listing.id}`} position={[listing.lat, listing.lng]}
+            icon={propertyIcon} zIndexOffset={100} keyboard
+            alt={`Property to lease: ${listing.title}`}>
+            <Popup>
+              <strong>{listing.title}</strong>
+              <p>{listing.price}<br />{listing.distance.toFixed(2)} km from pick {selectedRank}</p>
+              <a href={listing.url} target="_blank" rel="noopener noreferrer">View on Daft (new tab)</a>
+            </Popup>
+          </Marker>
+        ))}
 
         {analysis?.shortlist.map((p) => (
           <Marker
