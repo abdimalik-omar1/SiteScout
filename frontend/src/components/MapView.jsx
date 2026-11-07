@@ -5,7 +5,6 @@ import {
   MapContainer,
   Marker,
   Pane,
-  Popup,
   TileLayer,
   Tooltip,
   useMap,
@@ -211,11 +210,13 @@ export default function MapView({ analysis, labels, selectedRank, onSelect, metr
           <Marker key={`${selectedRank}-${listing.id}`} position={[listing.lat, listing.lng]}
             icon={propertyIcon} zIndexOffset={100} keyboard
             alt={`Property to lease: ${listing.title}`}>
-            <Popup>
+            <Tooltip pane="tooltipPane" className="cell-tip property-tip" direction="top" offset={[0, -8]}>
+              {listing.image && <img src={listing.image} alt={listing.title} width="240" height="160"
+                onError={(event) => { event.currentTarget.hidden = true; event.currentTarget.nextElementSibling.hidden = false; }} />}
+              <p hidden={Boolean(listing.image)}>Photo unavailable</p>
               <strong>{listing.title}</strong>
               <p>{listing.price}<br />{listing.distance.toFixed(2)} km from pick {selectedRank}</p>
-              <a href={listing.url} target="_blank" rel="noopener noreferrer">View on Daft (new tab)</a>
-            </Popup>
+            </Tooltip>
           </Marker>
         ))}
 

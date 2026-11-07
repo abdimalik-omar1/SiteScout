@@ -10,7 +10,7 @@ export function distanceKm(a, b) {
 }
 
 export function nearbyLeases(area, radius) {
-  return area ? listings
+  return area ? listings.filter((listing) => listing.category === "Commercial" && listing.url.startsWith("https://www.daft.ie/commercial-property-for-rent/"))
     .map((listing) => ({ ...listing, distance: distanceKm(area, listing) }))
     .filter((listing) => listing.distance <= radius)
     .sort((a, b) => a.distance - b.distance) : [];
@@ -27,7 +27,7 @@ export default function NearbyLeases({ area, nearby, radius, onRadius }) {
             {[1, 3, 5].map((km) => <option key={km} value={km}>{km} km</option>)}
           </select>
         </label>
-        <p className="small muted" role="status">{nearby.length} properties within {radius} km. Showing up to 10, nearest first. Small dots on the map show these properties; click a dot for details.</p>
+        <p className="small muted" role="status">{nearby.length} properties within {radius} km. Showing up to 10, nearest first. Hover over a property dot to see its photo and details.</p>
         {nearby.length === 0 && <p>No properties in this snapshot within {radius} km. Try a wider radius or another area.</p>}
         <ul className="lease-list">{nearby.slice(0, 10).map((listing) => <li key={listing.id}>
           <a href={listing.url} target="_blank" rel="noopener noreferrer">{listing.title}<span className="small"> ↗</span></a>
