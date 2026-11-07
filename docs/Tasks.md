@@ -4,7 +4,7 @@ Back to [[Home]]. Everyone builds against [[api-contract]].
 
 | Area | Owner | Branch | Files |
 |---|---|---|---|
-| Data and scoring | _assign_ | `feat/data-scoring` | `backend/app/scoring/`, `backend/app/data/` |
+| Data and scoring | _assign_ | `feat/scoring-engine` | `backend/app/scoring/`, `backend/app/data/` |
 | Agents (Gemini) | _assign_ | `feat/agents` | `backend/app/agents/` |
 | Frontend | _assign_ | `feat/frontend` | `frontend/` |
 
