@@ -7,23 +7,50 @@ import {
   GOOD_DIRECTION,
   fmt,
   labelFor,
-  rampCSS,
 } from "../lib.js";
 
-export function Brand() {
+export function Brand({ theme, onToggleTheme }) {
+  const light = theme === "light";
   return (
     <div className="brand">
       <div className="brand-mark" aria-hidden="true">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3dd6b5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" />
           <circle cx="12" cy="10" r="2.4" />
         </svg>
       </div>
-      <div>
+      <div style={{ flex: 1 }}>
         <div className="brand-name">SiteScout</div>
         <div className="brand-sub">Business location intelligence · Cork</div>
       </div>
+      <ThemeToggle light={light} onToggle={onToggleTheme} />
     </div>
+  );
+}
+
+// One button that switches theme. aria-pressed tells screen readers whether
+// light mode is on; the visible icon shows the mode you would switch to.
+export function ThemeToggle({ light, onToggle }) {
+  return (
+    <button
+      type="button"
+      className="theme-toggle"
+      aria-pressed={light}
+      aria-label="Light theme"
+      title={light ? "Switch to dark theme" : "Switch to light theme"}
+      onClick={onToggle}
+    >
+      {light ? (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
+        </svg>
+      ) : (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4" />
+        </svg>
+      )}
+    </button>
   );
 }
 
@@ -262,7 +289,7 @@ export function PickDetail({ pick, label, verdict, aiMode, waiting, onCompare })
           <div className="bar-row" key={k}>
             <span className="muted">{label}</span>
             <div className="bar-track">
-              <div className="bar-fill" style={{ width: `${pick.scores[k]}%`, background: rampCSS(pick.scores[k] / 100) }} />
+              <div className="bar-fill" style={{ width: `${pick.scores[k]}%` }} />
             </div>
             <b style={{ textAlign: "right" }}>{pick.scores[k]}</b>
           </div>

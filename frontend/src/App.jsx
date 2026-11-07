@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MapView from "./components/MapView.jsx";
 import CompareTable from "./components/CompareTable.jsx";
 import {
@@ -21,7 +21,27 @@ const DEFAULT_BRIEF = {
   city: "Cork",
 };
 
+function initialTheme() {
+  try {
+    const saved = localStorage.getItem("sitescout-theme");
+    if (saved === "light" || saved === "dark") return saved;
+  } catch {
+    /* storage unavailable */
+  }
+  return window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
 export default function App() {
+  const [theme, setTheme] = useState(initialTheme);
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#f4f2ed" : "#0a0e13");
+    try {
+      localStorage.setItem("sitescout-theme", theme);
+    } catch {
+      /* storage unavailable */
+    }
+  }, [theme]);
   const [brief, setBrief] = useState(DEFAULT_BRIEF);
   const [editing, setEditing] = useState(true);
   const [analysis, setAnalysis] = useState(null);
@@ -93,7 +113,7 @@ export default function App() {
     <div className="app">
       <aside className="sidebar">
         <div className="sidebar-scroll">
-          <Brand />
+          <Brand theme={theme} onToggleTheme={() => setTheme((t) => (t === "light" ? "dark" : "light"))} />
 
           {analysis?.data_mode === "sample" && (
             <div className="banner" role="status">
@@ -141,6 +161,7 @@ export default function App() {
         metric={metric}
         onMetric={setMetric}
         loading={analyzing}
+        theme={theme}
       />
 
       {compareOpen && analysis && (

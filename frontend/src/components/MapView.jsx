@@ -1,59 +1,124 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import {
   Circle,
   MapContainer,
   Marker,
-  Rectangle,
+  Pane,
   TileLayer,
   Tooltip,
   useMap,
+  useMapEvents,
+  ZoomControl,
 } from "react-leaflet";
 import {
+  CELL_SIZE_M,
   CORK_CENTRE,
   METRICS,
-  RAMP_GRADIENT,
-  cellBounds,
+  aggregateCells,
+  groupSizeForZoom,
   nearestArea,
   rampCSS,
+  rampGradient,
 } from "../lib.js";
 
-// One square per ~350 m grid cell, coloured by the chosen score.
-// The colour is stretched over the min..max of that score in this analysis,
-// and weaker cells fade out so the strong areas stand out on the dark map.
-function ScoreLayer({ cells, metric }) {
-  const range = useMemo(() => {
-    const vals = cells.map((c) => c.scores[metric]);
-    return { min: Math.min(...vals), max: Math.max(...vals) };
-  }, [cells, metric]);
+// Set VITE_CARTO_API_KEY in frontend/.env for CARTO basemaps.
+const CARTO_KEY = (import.meta.env.VITE_CARTO_API_KEY ?? "").trim();
 
-  return cells.map((c) => {
-    const v = c.scores[metric];
-    const t = range.max > range.min ? (v - range.min) / (range.max - range.min) : 1;
-    const opacity = 0.03 + 0.7 * Math.pow(t, 2.2);
+const RING = {
+  dark: { inner: "#3dd6b5", outer: "#93a0b2" },
+  light: { inner: "#0f7f6c", outer: "#6f7a72" },
+};
+
+function Basemap({ theme }) {
+  const osm = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+  if (CARTO_KEY) {
+    const style = theme === "light" ? "light_all" : "dark_all";
+    // Same tile address the team committed in 370f2a1, with the style swapped per theme.
     return (
-      <Rectangle
-        key={c.id}
-        bounds={cellBounds(c.lat, c.lng)}
+      <TileLayer
+        key={`carto-${style}`}
+        url={`https://{s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(CARTO_KEY)}`}
+        attribution={`${osm} &copy; <a href="https://carto.com/attributions">CARTO</a>`}
+        subdomains="abcd"
+        maxZoom={19}
+      />
+    );
+  }
+  // No CARTO key: standard OpenStreetMap tiles, darkened with CSS in dark mode.
+  return (
+    <TileLayer
+      key={`osm-${theme}`}
+      className={theme === "dark" ? "tiles-dark" : ""}
+      url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+      attribution={osm}
+      maxZoom={19}
+    />
+  );
+}
+
+// Tracks the zoom level so the circles can regroup.
+function ZoomWatcher({ onZoom }) {
+  const map = useMapEvents({ zoomend: () => onZoom(map.getZoom()) });
+  useEffect(() => onZoom(map.getZoom()), [map, onZoom]);
+  return null;
+}
+
+// The heat pane is blurred so overlapping circles melt into a smooth surface.
+// Blur grows with the circle size on screen, so it looks the same at every zoom.
+function HeatBlur({ k }) {
+  const map = useMap();
+  useEffect(() => {
+    const apply = () => {
+      const pane = map.getPane("heat");
+      if (!pane) return;
+      const mPerPx = (156543.03 * Math.cos((map.getCenter().lat * Math.PI) / 180)) / 2 ** map.getZoom();
+      const radiusPx = (k * CELL_SIZE_M * 0.8) / mPerPx;
+      const blur = Math.max(6, Math.min(36, radiusPx * 0.45));
+      pane.style.filter = `blur(${blur.toFixed(1)}px)`;
+    };
+    apply();
+    map.on("zoomend", apply);
+    return () => map.off("zoomend", apply);
+  }, [map, k]);
+  return null;
+}
+
+// Heatmap of grouped cells. Zoomed out, each circle averages a block of
+// nearby ~350 m cells; zoomed in, each cell is its own circle. Circles
+// overlap and the pane is blurred, so scores blend into a smooth surface.
+function ScoreLayer({ groups, metric, range, k, theme }) {
+  const radius = k * CELL_SIZE_M * 0.8;
+  return groups.map((g) => {
+    const v = g.scores[metric];
+    const t = range.max > range.min ? (v - range.min) / (range.max - range.min) : 1;
+    return (
+      <Circle
+        key={g.id}
+        center={[g.lat, g.lng]}
+        radius={radius}
         pathOptions={{
           stroke: false,
-          fillColor: rampCSS(t),
-          fillOpacity: opacity,
+          fillColor: rampCSS(t, theme),
+          fillOpacity: 0.04 + 0.66 * Math.pow(t, 1.8),
         }}
       >
         <Tooltip className="cell-tip" sticky direction="top" offset={[0, -6]}>
           <div>
-            <strong>Near {nearestArea(c.lat, c.lng)}</strong>
+            <strong>Near {nearestArea(g.lat, g.lng)}</strong>
+            <div className="tip-sub">
+              {g.n > 1 ? `Average of ${g.n} areas · best overall ${g.best}` : "Single ~350 m area"}
+            </div>
             <div className="tip-grid">
-              <span>Overall</span><b>{c.scores.total}</b>
-              <span>Demand</span><b>{c.scores.demand}</b>
-              <span>Competition</span><b>{c.scores.competition}</b>
-              <span>Access</span><b>{c.scores.access}</b>
-              <span>Cost</span><b>{c.scores.cost}</b>
+              <span>Overall</span><b>{g.scores.total}</b>
+              <span>Demand</span><b>{g.scores.demand}</b>
+              <span>Competition</span><b>{g.scores.competition}</b>
+              <span>Access</span><b>{g.scores.access}</b>
+              <span>Cost</span><b>{g.scores.cost}</b>
             </div>
           </div>
         </Tooltip>
-      </Rectangle>
+      </Circle>
     );
   });
 }
@@ -86,14 +151,30 @@ function Camera({ analysis, selected }) {
   return null;
 }
 
-export default function MapView({ analysis, labels, selectedRank, onSelect, metric, onMetric, loading }) {
+const LEVEL_TEXT = {
+  4: "Heat shows averages over about 1.4 km blocks. Zoom in for detail.",
+  2: "Heat shows averages over about 700 m blocks. Zoom in for detail.",
+  1: "Heat at the finest level: each ~350 m area.",
+};
+
+export default function MapView({ analysis, labels, selectedRank, onSelect, metric, onMetric, loading, theme }) {
+  const [zoom, setZoom] = useState(13);
+  const k = groupSizeForZoom(zoom);
   const selected = analysis?.shortlist.find((p) => p.rank === selectedRank) ?? null;
   const metricInfo = METRICS.find((m) => m.key === metric);
+  const ring = RING[theme] ?? RING.dark;
+
+  // Sample mode has only five cells, so grouping would hide them.
+  const level = analysis && analysis.cells.length > 5 ? k : 1;
+  const groups = useMemo(
+    () => (analysis ? aggregateCells(analysis.cells, level) : []),
+    [analysis, level]
+  );
   const range = useMemo(() => {
-    if (!analysis?.cells.length) return null;
-    const vals = analysis.cells.map((c) => c.scores[metric]);
+    if (!groups.length) return null;
+    const vals = groups.map((g) => g.scores[metric]);
     return { min: Math.min(...vals), max: Math.max(...vals) };
-  }, [analysis, metric]);
+  }, [groups, metric]);
 
   return (
     <div className="map-wrap">
@@ -105,27 +186,29 @@ export default function MapView({ analysis, labels, selectedRank, onSelect, metr
         zoomControl={false}
         style={{ height: "100%", width: "100%" }}
       >
-        <TileLayer
-          url={`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(import.meta.env.VITE_CARTO_API_KEY ?? "")}`}
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          subdomains="abcd"
-          maxZoom={19}
-        />
-        {analysis && <ScoreLayer cells={analysis.cells} metric={metric} />}
+        <Basemap theme={theme} />
+        <ZoomControl position="bottomright" />
+        <ZoomWatcher onZoom={setZoom} />
+        <Pane name="heat" style={{ zIndex: 350 }}>
+          {range && <ScoreLayer groups={groups} metric={metric} range={range} k={level} theme={theme} />}
+        </Pane>
+        <HeatBlur k={level} />
 
         {selected && (
-          <>
+          <Pane name="rings" style={{ zIndex: 450, pointerEvents: "none" }}>
             <Circle
               center={[selected.lat, selected.lng]}
               radius={600}
-              pathOptions={{ color: "#93a0b2", weight: 1.2, dashArray: "4 6", fill: false }}
+              interactive={false}
+              pathOptions={{ color: ring.outer, weight: 1.2, dashArray: "4 6", fill: false }}
             />
             <Circle
               center={[selected.lat, selected.lng]}
               radius={400}
-              pathOptions={{ color: "#3dd6b5", weight: 1.6, dashArray: "6 6", fillColor: "#3dd6b5", fillOpacity: 0.05 }}
+              interactive={false}
+              pathOptions={{ color: ring.inner, weight: 1.8, dashArray: "6 6", fillColor: ring.inner, fillOpacity: 0.05 }}
             />
-          </>
+          </Pane>
         )}
 
         {analysis?.shortlist.map((p) => (
@@ -170,22 +253,23 @@ export default function MapView({ analysis, labels, selectedRank, onSelect, metr
       {analysis && range && (
         <div className="overlay legend">
           <div className="small" style={{ fontWeight: 600 }}>
-            {metricInfo.label} score
+            {metricInfo.label} score{level > 1 ? " (area average)" : ""}
           </div>
           <div className="small muted">{metricInfo.hint}</div>
-          <div className="legend-bar" style={{ background: RAMP_GRADIENT }} />
+          <div className="legend-bar" style={{ background: rampGradient(theme) }} />
           <div className="legend-scale">
             <span>{range.min} weaker</span>
             <span>stronger {range.max}</span>
           </div>
+          <div className="legend-level small muted" aria-live="polite">{LEVEL_TEXT[level]}</div>
           {selected && (
             <div className="legend-key">
               <span>
-                <svg width="18" height="8" aria-hidden="true"><line x1="0" y1="4" x2="18" y2="4" stroke="#3dd6b5" strokeWidth="2" strokeDasharray="4 3" /></svg>
+                <svg width="18" height="8" aria-hidden="true"><line x1="0" y1="4" x2="18" y2="4" stroke={ring.inner} strokeWidth="2" strokeDasharray="4 3" /></svg>
                 400 m competitors
               </span>
               <span>
-                <svg width="18" height="8" aria-hidden="true"><line x1="0" y1="4" x2="18" y2="4" stroke="#93a0b2" strokeWidth="1.5" strokeDasharray="3 4" /></svg>
+                <svg width="18" height="8" aria-hidden="true"><line x1="0" y1="4" x2="18" y2="4" stroke={ring.outer} strokeWidth="1.5" strokeDasharray="3 4" /></svg>
                 600 m residents
               </span>
             </div>
@@ -200,7 +284,7 @@ export default function MapView({ analysis, labels, selectedRank, onSelect, metr
               Scout Cork to light up the map
             </div>
             <div className="muted small">
-              Every 350 m square of the city is scored against your brief. The best areas glow; the top five get numbered pins.
+              Every 350 m area of the city is scored against your brief. Zoom out to see neighbourhood averages, zoom in for the detail.
             </div>
           </div>
         </div>

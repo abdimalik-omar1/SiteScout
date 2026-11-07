@@ -68,34 +68,94 @@ async function post(path, body, signal) {
 export const analyze = (brief, signal) => post("/api/analyze", brief, signal);
 export const explain = (analysis, signal) => post("/api/explain", analysis, signal);
 
-// ---- Colour ramp for the score map -----------------------------------------
-// Dark slate -> teal -> mint -> lime. Reads well on a dark base map.
+// ---- Colour ramps for the score map -----------------------------------------
+// Dark theme: slate -> teal -> mint -> lime, bright on a dark base map.
+// Light theme: pale mint -> teal -> deep blue, dark on a light base map.
+// In both, a stronger score is a more prominent colour.
 
-const STOPS = [
-  [0.0, [26, 46, 64]],
-  [0.35, [24, 110, 120]],
-  [0.7, [61, 214, 181]],
-  [1.0, [214, 245, 110]],
-];
+const RAMPS = {
+  dark: [
+    [0.0, [26, 46, 64]],
+    [0.35, [24, 110, 120]],
+    [0.7, [61, 214, 181]],
+    [1.0, [214, 245, 110]],
+  ],
+  light: [
+    [0.0, [206, 236, 226]],
+    [0.35, [95, 190, 168]],
+    [0.7, [20, 128, 112]],
+    [1.0, [12, 52, 92]],
+  ],
+};
 
-export function rampRGB(t) {
+export function rampRGB(t, theme = "dark") {
+  const stops = RAMPS[theme] ?? RAMPS.dark;
   const x = Math.max(0, Math.min(1, t));
-  for (let i = 1; i < STOPS.length; i++) {
-    const [t1, c1] = STOPS[i];
-    const [t0, c0] = STOPS[i - 1];
+  for (let i = 1; i < stops.length; i++) {
+    const [t1, c1] = stops[i];
+    const [t0, c0] = stops[i - 1];
     if (x <= t1) {
       const f = (x - t0) / (t1 - t0 || 1);
       return c0.map((v, k) => Math.round(v + (c1[k] - v) * f));
     }
   }
-  return STOPS[STOPS.length - 1][1];
+  return stops[stops.length - 1][1];
 }
 
-export const rampCSS = (t) => `rgb(${rampRGB(t).join(",")})`;
+export const rampCSS = (t, theme) => `rgb(${rampRGB(t, theme).join(",")})`;
 
-export const RAMP_GRADIENT = `linear-gradient(90deg, ${STOPS.map(
-  ([t, c]) => `rgb(${c.join(",")}) ${t * 100}%`
-).join(", ")})`;
+export const rampGradient = (theme = "dark") =>
+  `linear-gradient(90deg, ${(RAMPS[theme] ?? RAMPS.dark)
+    .map(([t, c]) => `rgb(${c.join(",")}) ${t * 100}%`)
+    .join(", ")})`;
+
+// ---- Zoom-dependent aggregation ---------------------------------------------
+// Zoomed out, nearby grid cells are grouped into one circle showing their
+// average scores; zoomed in, every ~350 m cell is its own circle.
+
+export function groupSizeForZoom(zoom) {
+  if (zoom <= 12) return 4; // ~1.4 km groups
+  if (zoom === 13) return 2; // ~700 m groups
+  return 1; // single cells
+}
+
+const GRID_ORIGIN = [51.86, -8.56]; // matches the backend bbox corner
+
+export function aggregateCells(cells, k) {
+  const keys = ["total", "demand", "competition", "access", "cost"];
+  if (k <= 1) {
+    return cells.map((c) => ({
+      id: c.id, lat: c.lat, lng: c.lng, n: 1, scores: c.scores, best: c.scores.total, members: [c],
+    }));
+  }
+  const stepLat = (k * CELL_SIZE_M) / 111320;
+  const stepLng = (k * CELL_SIZE_M) / (111320 * Math.cos((GRID_ORIGIN[0] * Math.PI) / 180));
+  const groups = new Map();
+  for (const c of cells) {
+    const row = Math.floor((c.lat - GRID_ORIGIN[0]) / stepLat);
+    const col = Math.floor((c.lng - GRID_ORIGIN[1]) / stepLng);
+    const key = `${row}:${col}`;
+    let g = groups.get(key);
+    if (!g) {
+      g = { id: `g${k}-${key}`, row, col, n: 0, members: [], sums: Object.fromEntries(keys.map((x) => [x, 0])), best: -Infinity };
+      groups.set(key, g);
+    }
+    g.n += 1;
+    g.members.push(c);
+    keys.forEach((x) => (g.sums[x] += c.scores[x]));
+    g.best = Math.max(g.best, c.scores.total);
+  }
+  // Circles sit at the centre of their block, so neighbours never overlap.
+  return [...groups.values()].map((g) => ({
+    id: g.id,
+    lat: GRID_ORIGIN[0] + (g.row + 0.5) * stepLat,
+    lng: GRID_ORIGIN[1] + (g.col + 0.5) * stepLng,
+    n: g.n,
+    best: g.best,
+    members: g.members,
+    scores: Object.fromEntries(keys.map((x) => [x, Math.round(g.sums[x] / g.n)])),
+  }));
+}
 
 // Half a cell in degrees, so a centre point becomes a square.
 export function cellBounds(lat, lng) {
