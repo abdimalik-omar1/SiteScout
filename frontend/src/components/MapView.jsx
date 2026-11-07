@@ -97,28 +97,13 @@ function ScoreLayer({ groups, metric, range, k, theme }) {
         key={g.id}
         center={[g.lat, g.lng]}
         radius={radius}
+        interactive={false}
         pathOptions={{
           stroke: false,
           fillColor: rampCSS(t, theme),
           fillOpacity: 0.04 + 0.66 * Math.pow(t, 1.8),
         }}
-      >
-        <Tooltip className="cell-tip" sticky direction="top" offset={[0, -6]}>
-          <div>
-            <strong>Near {nearestArea(g.lat, g.lng)}</strong>
-            <div className="tip-sub">
-              {g.n > 1 ? `Average of ${g.n} areas · best overall ${g.best}` : "Single ~350 m area"}
-            </div>
-            <div className="tip-grid">
-              <span>Overall</span><b>{g.scores.total}</b>
-              <span>Demand</span><b>{g.scores.demand}</b>
-              <span>Competition</span><b>{g.scores.competition}</b>
-              <span>Access</span><b>{g.scores.access}</b>
-              <span>Cost</span><b>{g.scores.cost}</b>
-            </div>
-          </div>
-        </Tooltip>
-      </Circle>
+      />
     );
   });
 }

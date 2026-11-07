@@ -71,6 +71,11 @@
 
 * { box-sizing: border-box; }
 
+.lease-list { list-style: none; padding: 0; margin: 0; }
+.lease-list li { padding: 12px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.lease-list a { color: var(--accent-text); font-weight: 600; }
+.leases p { margin: 10px 0; }
+
 html, body, #root { height: 100%; }
 
 body {
