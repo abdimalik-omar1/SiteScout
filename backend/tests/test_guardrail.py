@@ -61,3 +61,10 @@ def test_check_verdict_swaps_bad_keeps_good():
     p = a.shortlist[0]
     good = Verdict(rank=1, verdict=f"Total {p.scores.total} out of 100.", risks=["Cost is a proxy."])
     assert check_verdict(good, a) is good
+
+
+def test_cell_ids_are_not_numbers():
+    from app.agents.guardrail import extract_numbers
+
+    assert extract_numbers("Cell r9c29 has 6 offices") == [6.0]
+    assert extract_numbers("sample-3 scores 70") == [70.0]

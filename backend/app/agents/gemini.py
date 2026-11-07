@@ -13,7 +13,8 @@ try:
 except Exception:  # missing dotenv or .env is fine
     pass
 
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-3.5-flash-lite"  # fast (~2 s); gemini-3.8-flash took ~50 s/call, 2.5-flash 404s for new keys
+DEFAULT_TIMEOUT_S = 30  # per request; a hung call must not stall the demo
 MAX_EXTRA_RETRIES = 2
 BACKOFF_SECONDS = 0.5
 
@@ -43,7 +44,13 @@ def _get_client():
                 from google import genai
             except Exception as exc:
                 raise GeminiError(f"google-genai SDK not available: {exc}") from exc
-            _client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+            from google.genai import types
+
+            timeout_ms = int(float(os.getenv("GEMINI_TIMEOUT_S", "") or DEFAULT_TIMEOUT_S) * 1000)
+            _client = genai.Client(
+                api_key=os.getenv("GEMINI_API_KEY"),
+                http_options=types.HttpOptions(timeout=timeout_ms),
+            )
         return _client
 
 
@@ -87,6 +94,9 @@ def generate_json(system: str, prompt: str, schema: dict) -> dict:
             raise
         except Exception as exc:
             last_exc = exc
+            code = getattr(exc, "code", None)
+            if isinstance(code, int) and 400 <= code < 500 and code != 429:
+                break  # bad model/key/request: retrying cannot help
             continue
         with _cache_lock:
             _cache[key] = data

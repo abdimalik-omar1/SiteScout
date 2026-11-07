@@ -38,7 +38,7 @@ def test_success(monkeypatch):
     assert gemini.is_configured()
     assert gemini.generate_json("s", "p", SCHEMA) == {"a": 1}
     assert c.models.generate_content.call_count == 1
-    assert c.models.generate_content.call_args.kwargs["model"] == "gemini-2.5-flash"
+    assert c.models.generate_content.call_args.kwargs["model"] == gemini.DEFAULT_MODEL
 
 
 def test_retry_on_bad_json_then_success(monkeypatch):

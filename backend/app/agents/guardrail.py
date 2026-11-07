@@ -37,6 +37,9 @@ def allowed_numbers(analysis: Analysis, rank: int | None = None) -> set[float]:
     return allowed
 
 
+_CELL_ID_RE = re.compile(r"\b(?:r\d+c\d+|sample-\d+)\b", re.IGNORECASE)
+
+
 def extract_numbers(text: str) -> list[float]:
     """Pull numeric tokens from free text.
 
@@ -46,6 +49,8 @@ def extract_numbers(text: str) -> list[float]:
     deliberately not exempted so '14th' cannot smuggle in a figure). Signs are
     ignored ('-5' -> 5); ranges '2-3' give 2 and 3.
     """
+    # Grid-cell identifiers ('r9c29', 'sample-3') are labels, not figures.
+    text = _CELL_ID_RE.sub(" ", text)
     out: list[float] = []
     for m in _NUM_RE.finditer(text):
         out.append(float(m.group(0).replace(",", "")))
