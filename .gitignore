@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 .venv/
+.venv-backend/
 venv/
 node_modules/
 dist/
