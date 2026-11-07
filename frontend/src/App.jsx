@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MapView from "./components/MapView.jsx";
+import NearbyLeases, { nearbyLeases } from "./components/NearbyLeases.jsx";
 import CompareTable from "./components/CompareTable.jsx";
 import {
   AgentPanel,
@@ -54,6 +55,9 @@ export default function App() {
   const [metric, setMetric] = useState("total");
   const [compareOpen, setCompareOpen] = useState(false);
   const [prevRanks, setPrevRanks] = useState(null);
+  const leasesPanel = useRef(null);
+  const [leaseRadius, setLeaseRadius] = useState(3);
+  const [hoveredLeaseId, setHoveredLeaseId] = useState(null);
 
   // Drop responses from a run that has since been replaced.
   const runId = useRef(0);
@@ -107,7 +111,18 @@ export default function App() {
   const picks = analysis?.shortlist ?? [];
   const labels = useMemo(() => pickLabels(analysis?.shortlist ?? []), [analysis]);
   const selected = picks.find((p) => p.rank === selectedRank) ?? null;
+  const nearby = useMemo(() => nearbyLeases(selected, leaseRadius), [selected, leaseRadius]);
+  const mapLeases = useMemo(() => nearby.slice(0, 10), [nearby]);
+  useEffect(() => setHoveredLeaseId(null), [mapLeases]);
   const verdict = explanation?.verdicts.find((v) => v.rank === selectedRank) ?? null;
+  const selectPick = (rank) => {
+    setSelectedRank(rank);
+    setCompareOpen(false);
+    requestAnimationFrame(() => {
+      leasesPanel.current?.scrollIntoView({ block: "nearest" });
+      leasesPanel.current?.focus({ preventScroll: true });
+    });
+  };
 
   return (
     <div className="app">
@@ -134,7 +149,12 @@ export default function App() {
               />
               <AgentPanel explanation={explanation} waiting={explaining} error={explainError} />
               {picks.length > 0 && (
-                <Shortlist picks={picks} labels={labels} selectedRank={selectedRank} onSelect={setSelectedRank} prevRanks={prevRanks} />
+                <Shortlist picks={picks} labels={labels} selectedRank={selectedRank} onSelect={selectPick} prevRanks={prevRanks} />
+              )}
+              {selected && (
+                <div ref={leasesPanel} tabIndex={-1} aria-label={`Commercial rentals near pick ${selected.rank}`}>
+                  <NearbyLeases area={selected} nearby={nearby} radius={leaseRadius} onRadius={setLeaseRadius} hoveredId={hoveredLeaseId} />
+                </div>
               )}
               {selected && (
                 <PickDetail
@@ -154,10 +174,12 @@ export default function App() {
       </aside>
 
       <MapView
+        leases={mapLeases}
+        onLeaseHover={setHoveredLeaseId}
         analysis={analysis}
         labels={labels}
         selectedRank={selectedRank}
-        onSelect={setSelectedRank}
+        onSelect={selectPick}
         metric={metric}
         onMetric={setMetric}
         loading={analyzing}
@@ -165,7 +187,7 @@ export default function App() {
       />
 
       {compareOpen && analysis && (
-        <CompareTable analysis={analysis} labels={labels} onClose={() => setCompareOpen(false)} onSelect={setSelectedRank} />
+        <CompareTable analysis={analysis} labels={labels} onClose={() => setCompareOpen(false)} onSelect={selectPick} />
       )}
     </div>
   );

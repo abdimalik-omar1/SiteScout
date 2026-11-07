@@ -24,6 +24,11 @@ import {
 
 // Set VITE_CARTO_API_KEY in frontend/.env for CARTO basemaps.
 const CARTO_KEY = (import.meta.env.VITE_CARTO_API_KEY ?? "").trim();
+const propertyIcon = L.divIcon({
+  className: "property-pin",
+  iconSize: [12, 12],
+  iconAnchor: [6, 6],
+});
 
 const RING = {
   dark: { inner: "#3dd6b5", outer: "#93a0b2" },
@@ -89,6 +94,10 @@ function HeatBlur({ k }) {
 // overlap and the pane is blurred, so scores blend into a smooth surface.
 function ScoreLayer({ groups, metric, range, k, theme }) {
   const radius = k * CELL_SIZE_M * 0.8;
+  // Own canvas with a wide margin past the screen edge. The blur softens the
+  // canvas edge too, so with the default small margin a soft band showed at
+  // the top while dragging, until the map redrew.
+  const renderer = useMemo(() => L.canvas({ pane: "heat", padding: 0.6 }), []);
   return groups.map((g) => {
     const v = g.scores[metric];
     const t = range.max > range.min ? (v - range.min) / (range.max - range.min) : 1;
@@ -97,28 +106,14 @@ function ScoreLayer({ groups, metric, range, k, theme }) {
         key={g.id}
         center={[g.lat, g.lng]}
         radius={radius}
+        interactive={false}
+        renderer={renderer}
         pathOptions={{
           stroke: false,
           fillColor: rampCSS(t, theme),
           fillOpacity: 0.04 + 0.66 * Math.pow(t, 1.8),
         }}
-      >
-        <Tooltip className="cell-tip" sticky direction="top" offset={[0, -6]}>
-          <div>
-            <strong>Near {nearestArea(g.lat, g.lng)}</strong>
-            <div className="tip-sub">
-              {g.n > 1 ? `Average of ${g.n} areas · best overall ${g.best}` : "Single ~350 m area"}
-            </div>
-            <div className="tip-grid">
-              <span>Overall</span><b>{g.scores.total}</b>
-              <span>Demand</span><b>{g.scores.demand}</b>
-              <span>Competition</span><b>{g.scores.competition}</b>
-              <span>Access</span><b>{g.scores.access}</b>
-              <span>Cost</span><b>{g.scores.cost}</b>
-            </div>
-          </div>
-        </Tooltip>
-      </Circle>
+      />
     );
   });
 }
@@ -157,7 +152,7 @@ const LEVEL_TEXT = {
   1: "Heat at the finest level: each ~350 m area.",
 };
 
-export default function MapView({ analysis, labels, selectedRank, onSelect, metric, onMetric, loading, theme }) {
+export default function MapView({ analysis, labels, selectedRank, onSelect, metric, onMetric, loading, theme, leases = [], onLeaseHover }) {
   const [zoom, setZoom] = useState(13);
   const k = groupSizeForZoom(zoom);
   const selected = analysis?.shortlist.find((p) => p.rank === selectedRank) ?? null;
@@ -211,6 +206,24 @@ export default function MapView({ analysis, labels, selectedRank, onSelect, metr
           </Pane>
         )}
 
+        {leases.map((listing) => (
+          <Marker key={`${selectedRank}-${listing.id}`} position={[listing.lat, listing.lng]}
+            icon={propertyIcon} zIndexOffset={100} keyboard
+            eventHandlers={{
+              tooltipopen: () => onLeaseHover(listing.id),
+              tooltipclose: () => onLeaseHover((current) => current === listing.id ? null : current),
+            }}
+            alt={`Property to lease: ${listing.title}`}>
+            <Tooltip pane="tooltipPane" className="cell-tip property-tip" direction="top" offset={[0, -8]}>
+              {listing.image && <img src={listing.image} alt={listing.title} width="240" height="160"
+                onError={(event) => { event.currentTarget.hidden = true; event.currentTarget.nextElementSibling.hidden = false; }} />}
+              <p hidden={Boolean(listing.image)}>Photo unavailable</p>
+              <strong>{listing.title}</strong>
+              <p>{listing.price}<br />{listing.distance.toFixed(2)} km from pick {selectedRank}</p>
+            </Tooltip>
+          </Marker>
+        ))}
+
         {analysis?.shortlist.map((p) => (
           <Marker
             key={p.cell_id}
@@ -219,8 +232,22 @@ export default function MapView({ analysis, labels, selectedRank, onSelect, metr
             zIndexOffset={p.rank === selectedRank ? 1000 : 500 - p.rank}
             eventHandlers={{ click: () => onSelect(p.rank) }}
             keyboard
-            title={`Pick ${p.rank}: near ${labels?.[p.cell_id] ?? nearestArea(p.lat, p.lng)}, score ${p.scores.total}`}
-          />
+            alt={`Pick ${p.rank}: near ${labels?.[p.cell_id] ?? nearestArea(p.lat, p.lng)}, score ${p.scores.total}`}
+          >
+            <Tooltip pane="tooltipPane" className="cell-tip" direction="top" offset={[0, -16]}>
+              <div>
+                <strong>#{p.rank} · {labels?.[p.cell_id] ?? nearestArea(p.lat, p.lng)}</strong>
+                <div className="tip-sub">Shortlisted pick · click for details</div>
+                <div className="tip-grid">
+                  <span>Overall</span><b>{p.scores.total}</b>
+                  <span>Demand</span><b>{p.scores.demand}</b>
+                  <span>Competition</span><b>{p.scores.competition}</b>
+                  <span>Access</span><b>{p.scores.access}</b>
+                  <span>Cost</span><b>{p.scores.cost}</b>
+                </div>
+              </div>
+            </Tooltip>
+          </Marker>
         ))}
 
         <Camera analysis={analysis} selected={selected} />
