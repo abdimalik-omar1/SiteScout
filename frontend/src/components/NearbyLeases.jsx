@@ -17,11 +17,12 @@ export function nearbyLeases(area, radius) {
     .sort((a, b) => a.distance - b.distance) : [];
 }
 
-export default function NearbyLeases({ area, nearby, radius, onRadius, hoveredId }) {
+export default function NearbyLeases({ area, nearby, radius, onRadius, hoveredId, selectedId }) {
   const highlighted = useRef(null);
+  const activeId = hoveredId ?? selectedId;
   useEffect(() => {
     highlighted.current?.scrollIntoView({ block: "nearest" });
-  }, [hoveredId]);
+  }, [hoveredId, selectedId]);
   return (
     <section className="card card-pad leases" aria-labelledby="leases-heading">
       <h2 id="leases-heading" className="h2">Properties to lease near pick {area?.rank}</h2>
@@ -32,11 +33,13 @@ export default function NearbyLeases({ area, nearby, radius, onRadius, hoveredId
             {[1, 3, 5].map((km) => <option key={km} value={km}>{km} km</option>)}
           </select>
         </label>
-        <p className="small muted" role="status">{nearby.length} properties within {radius} km. Showing up to 10, nearest first. Hover over a property dot to see its photo and details.</p>
+        <p className="small muted" role="status">{nearby.length} properties within {radius} km. Showing up to 10, nearest first. Hover over a property dot for a photo; click it to select its listing here.</p>
         {nearby.length === 0 && <p>No properties in this snapshot within {radius} km. Try a wider radius or another area.</p>}
         <ul className="lease-list">{nearby.slice(0, 10).map((listing) => <li key={listing.id}
-          ref={listing.id === hoveredId ? highlighted : null}
-          className={listing.id === hoveredId ? "lease-highlighted" : undefined}>
+          ref={listing.id === activeId ? highlighted : null}
+          aria-current={listing.id === selectedId ? "true" : undefined}
+          className={listing.id === activeId ? "lease-highlighted" : undefined}>
+          {listing.id === selectedId && <div className="small lease-selection" role="status">Selected property</div>}
           <a href={listing.url} target="_blank" rel="noopener noreferrer">{listing.title}<span className="small"> ↗</span></a>
           <div>{listing.price}</div>
           <div className="small muted">{listing.distance.toFixed(2)} km away · straight-line distance</div>
