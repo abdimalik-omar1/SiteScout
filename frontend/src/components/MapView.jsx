@@ -152,7 +152,7 @@ const LEVEL_TEXT = {
   1: "Heat at the finest level: each ~350 m area.",
 };
 
-export default function MapView({ analysis, labels, selectedRank, onSelect, metric, onMetric, loading, theme, leases = [] }) {
+export default function MapView({ analysis, labels, selectedRank, onSelect, metric, onMetric, loading, theme, leases = [], onLeaseHover }) {
   const [zoom, setZoom] = useState(13);
   const k = groupSizeForZoom(zoom);
   const selected = analysis?.shortlist.find((p) => p.rank === selectedRank) ?? null;
@@ -209,6 +209,10 @@ export default function MapView({ analysis, labels, selectedRank, onSelect, metr
         {leases.map((listing) => (
           <Marker key={`${selectedRank}-${listing.id}`} position={[listing.lat, listing.lng]}
             icon={propertyIcon} zIndexOffset={100} keyboard
+            eventHandlers={{
+              tooltipopen: () => onLeaseHover(listing.id),
+              tooltipclose: () => onLeaseHover((current) => current === listing.id ? null : current),
+            }}
             alt={`Property to lease: ${listing.title}`}>
             <Tooltip pane="tooltipPane" className="cell-tip property-tip" direction="top" offset={[0, -8]}>
               {listing.image && <img src={listing.image} alt={listing.title} width="240" height="160"

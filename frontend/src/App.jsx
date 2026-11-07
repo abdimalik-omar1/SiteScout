@@ -57,6 +57,7 @@ export default function App() {
   const [prevRanks, setPrevRanks] = useState(null);
   const leasesPanel = useRef(null);
   const [leaseRadius, setLeaseRadius] = useState(3);
+  const [hoveredLeaseId, setHoveredLeaseId] = useState(null);
 
   // Drop responses from a run that has since been replaced.
   const runId = useRef(0);
@@ -112,6 +113,7 @@ export default function App() {
   const selected = picks.find((p) => p.rank === selectedRank) ?? null;
   const nearby = useMemo(() => nearbyLeases(selected, leaseRadius), [selected, leaseRadius]);
   const mapLeases = useMemo(() => nearby.slice(0, 10), [nearby]);
+  useEffect(() => setHoveredLeaseId(null), [mapLeases]);
   const verdict = explanation?.verdicts.find((v) => v.rank === selectedRank) ?? null;
   const selectPick = (rank) => {
     setSelectedRank(rank);
@@ -151,7 +153,7 @@ export default function App() {
               )}
               {selected && (
                 <div ref={leasesPanel} tabIndex={-1} aria-label={`Commercial rentals near pick ${selected.rank}`}>
-                  <NearbyLeases area={selected} nearby={nearby} radius={leaseRadius} onRadius={setLeaseRadius} />
+                  <NearbyLeases area={selected} nearby={nearby} radius={leaseRadius} onRadius={setLeaseRadius} hoveredId={hoveredLeaseId} />
                 </div>
               )}
               {selected && (
@@ -173,6 +175,7 @@ export default function App() {
 
       <MapView
         leases={mapLeases}
+        onLeaseHover={setHoveredLeaseId}
         analysis={analysis}
         labels={labels}
         selectedRank={selectedRank}

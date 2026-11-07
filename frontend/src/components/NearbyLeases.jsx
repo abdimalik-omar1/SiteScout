@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import listings from "../data/commercial_leases.json";
 import { nearestArea } from "../lib.js";
 
@@ -16,7 +17,11 @@ export function nearbyLeases(area, radius) {
     .sort((a, b) => a.distance - b.distance) : [];
 }
 
-export default function NearbyLeases({ area, nearby, radius, onRadius }) {
+export default function NearbyLeases({ area, nearby, radius, onRadius, hoveredId }) {
+  const highlighted = useRef(null);
+  useEffect(() => {
+    highlighted.current?.scrollIntoView({ block: "nearest" });
+  }, [hoveredId]);
   return (
     <section className="card card-pad leases" aria-labelledby="leases-heading">
       <h2 id="leases-heading" className="h2">Properties to lease near pick {area?.rank}</h2>
@@ -29,7 +34,9 @@ export default function NearbyLeases({ area, nearby, radius, onRadius }) {
         </label>
         <p className="small muted" role="status">{nearby.length} properties within {radius} km. Showing up to 10, nearest first. Hover over a property dot to see its photo and details.</p>
         {nearby.length === 0 && <p>No properties in this snapshot within {radius} km. Try a wider radius or another area.</p>}
-        <ul className="lease-list">{nearby.slice(0, 10).map((listing) => <li key={listing.id}>
+        <ul className="lease-list">{nearby.slice(0, 10).map((listing) => <li key={listing.id}
+          ref={listing.id === hoveredId ? highlighted : null}
+          className={listing.id === hoveredId ? "lease-highlighted" : undefined}>
           <a href={listing.url} target="_blank" rel="noopener noreferrer">{listing.title}<span className="small"> ↗</span></a>
           <div>{listing.price}</div>
           <div className="small muted">{listing.distance.toFixed(2)} km away · straight-line distance</div>
