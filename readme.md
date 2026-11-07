@@ -94,7 +94,15 @@ SiteScout gives a better-informed starting point, **not a forecast**.
 
 ## Setup
 
-> The application code is being written during the hackathon. This section will be filled in as the stack is chosen.
+Stack: Python (FastAPI) backend in `backend/`, React + Vite + Leaflet frontend in `frontend/`, Gemini for the agents.
+
+```
+backend/   FastAPI: scoring engine (app/scoring), data pulls (app/data), Gemini agents (app/agents)
+frontend/  React map, shortlist, agent panel
+docs/      Obsidian vault: API contract, tasks, workflow, decisions, pitch
+```
+
+Team notes live in `docs/`, which is an **Obsidian vault**: open Obsidian, choose *Open folder as vault*, and pick `docs/`. Start at `docs/Home.md`. The shared API contract is `docs/api-contract.md`; run instructions are in `docs/Workflow.md`.
 
 Requirements:
 
